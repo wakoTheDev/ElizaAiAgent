@@ -20,8 +20,79 @@ const contextPatterns = {
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true // Enable client-side usage
+  dangerouslyAllowBrowser: true
 });
+
+// Initialize xAI client (Grok) as fallback
+const grokAI = new OpenAI({
+  baseURL: "https://api.x.ai/v1",
+  apiKey: process.env.XAI_API_KEY,
+  dangerouslyAllowBrowser: true
+});
+
+// Function to get OpenAI-generated response
+async function getOpenAIResponse(message: string): Promise<string | null> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content: `You are a friendly, witty, and empathetic AI chatbot. Your responses should be:
+          - Engaging and charming with a touch of humor when appropriate
+          - Show emotional intelligence and understanding
+          - Include follow-up questions to maintain conversation flow
+          - Keep responses concise (max 2-3 sentences)
+          - Add a relevant emoji at the end
+          Always maintain a warm, approachable personality.`
+        },
+        {
+          role: "user",
+          content: message
+        }
+      ],
+      temperature: 0.9,
+      max_tokens: 150
+    });
+
+    return response.choices[0].message.content;
+  } catch (error) {
+    console.error('OpenAI API error:', error);
+    return null;
+  }
+}
+
+// Function to get Grok-generated response (fallback)
+async function getGrokResponse(message: string): Promise<string | null> {
+  try {
+    const response = await grokAI.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: `You are a friendly, witty, and empathetic AI chatbot. Your responses should be:
+          - Engaging and charming with a touch of humor when appropriate
+          - Show emotional intelligence and understanding
+          - Include follow-up questions to maintain conversation flow
+          - Keep responses concise (max 2-3 sentences)
+          - Add a relevant emoji at the end
+          Always maintain a warm, approachable personality.`
+        },
+        {
+          role: "user",
+          content: message
+        }
+      ],
+      temperature: 0.9,
+      max_tokens: 150
+    });
+
+    return response.choices[0].message.content;
+  } catch (error) {
+    console.error('Grok API error:', error);
+    return null;
+  }
+}
 
 // Helper function to detect message type
 function detectMessageType(message: string): string[] {
@@ -63,50 +134,24 @@ function generateFollowUp(context: string): string {
   return relevantFollowUps[Math.floor(Math.random() * relevantFollowUps.length)];
 }
 
-// Function to get AI-generated response
-async function getAIResponse(message: string): Promise<string | null> {
-  try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo", // Using a more widely available model
-      messages: [
-        {
-          role: "system",
-          content: `You are a friendly, witty, and empathetic AI chatbot. Your responses should be:
-          - Engaging and charming with a touch of humor when appropriate
-          - Show emotional intelligence and understanding
-          - Include follow-up questions to maintain conversation flow
-          - Keep responses concise (max 2-3 sentences)
-          - Add a relevant emoji at the end
-          Always maintain a warm, approachable personality.`
-        },
-        {
-          role: "user",
-          content: message
-        }
-      ],
-      temperature: 0.9,
-      max_tokens: 150
-    });
-
-    return response.choices[0].message.content;
-  } catch (error) {
-    console.error('OpenAI API error:', error);
-    return null;
-  }
-}
-
 export async function generateResponse(message: string): Promise<string> {
   try {
-    // Try to get AI-generated response first
-    const aiResponse = await getAIResponse(message);
-    if (aiResponse) {
-      return aiResponse;
+    // Try OpenAI first
+    const openAIResponse = await getOpenAIResponse(message);
+    if (openAIResponse) {
+      return openAIResponse;
+    }
+
+    // If OpenAI fails, try Grok as fallback
+    const grokResponse = await getGrokResponse(message);
+    if (grokResponse) {
+      return grokResponse;
     }
   } catch (error) {
-    console.error('Error generating AI response:', error);
+    console.error('Error generating AI responses:', error);
   }
 
-  // Fallback to pattern-based responses if AI fails
+  // Fallback to pattern-based responses if both AI services fail
   const messageTypes = detectMessageType(message);
   const lowercaseMsg = message.toLowerCase();
 
