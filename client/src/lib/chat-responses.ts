@@ -57,10 +57,55 @@ function generateFollowUp(context: string): string {
   return relevantFollowUps[Math.floor(Math.random() * relevantFollowUps.length)];
 }
 
-export function generateResponse(message: string): string {
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  dangerouslyAllowBrowser: true // Enable client-side usage
+});
+
+// Function to get AI-generated response
+async function getAIResponse(message: string): Promise<string | null> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o", // newest model as of May 13, 2024
+      messages: [
+        {
+          role: "system",
+          content: `You are a friendly, witty, and empathetic AI chatbot. Your responses should be:
+          - Engaging and charming with a touch of humor when appropriate
+          - Show emotional intelligence and understanding
+          - Include follow-up questions to maintain conversation flow
+          - Keep responses concise (max 2-3 sentences)
+          - Add a relevant emoji at the end
+          Always maintain a warm, approachable personality.`
+        },
+        {
+          role: "user",
+          content: message
+        }
+      ],
+      temperature: 0.9,
+      max_tokens: 150
+    });
+
+    return response.choices[0].message.content;
+  } catch (error) {
+    console.error('OpenAI API error:', error);
+    return null;
+  }
+}
+
+export async function generateResponse(message: string): Promise<string> {
   const messageTypes = detectMessageType(message);
   const lowercaseMsg = message.toLowerCase();
 
+  // Try to get AI-generated response first
+  const aiResponse = await getAIResponse(message);
+  if (aiResponse) {
+    return aiResponse;
+  }
+
+  // Fallback to pattern-based responses if AI fails
   // Handle greetings with personality
   if (messageTypes.includes('greetings')) {
     const greetings = [

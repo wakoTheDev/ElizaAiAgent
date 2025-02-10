@@ -9,9 +9,11 @@ import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
 import { Message } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { useRef, useEffect } from "react";
 
 export function ChatContainer() {
   const { toast } = useToast();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: messages = [], isLoading } = useQuery<Message[]>({
     queryKey: ["/api/messages"]
@@ -47,6 +49,13 @@ export function ChatContainer() {
     }
   });
 
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
   return (
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -61,12 +70,14 @@ export function ChatContainer() {
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
-        <ScrollArea className="h-[500px] pr-4">
-          {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
-          ))}
+        <ScrollArea className="h-[500px] pr-4" ref={scrollRef}>
+          <div className="space-y-4">
+            {messages.map((message) => (
+              <MessageBubble key={message.id} message={message} />
+            ))}
+          </div>
         </ScrollArea>
-        
+
         <ChatInput 
           onSendMessage={(content) => sendMessage.mutate(content)}
           disabled={sendMessage.isPending || isLoading}

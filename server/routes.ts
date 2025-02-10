@@ -11,25 +11,30 @@ export function registerRoutes(app: Express): Server {
   });
 
   app.post("/api/messages", async (req, res) => {
-    const result = chatMessageSchema.safeParse(req.body);
-    if (!result.success) {
-      return res.status(400).json({ error: "Invalid message format" });
+    try {
+      const result = chatMessageSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ error: "Invalid message format" });
+      }
+
+      // Save user message
+      const userMessage = await storage.addMessage({
+        content: result.data.content,
+        sender: "user"
+      });
+
+      // Generate and save bot response
+      const botResponse = await generateResponse(result.data.content);
+      const botMessage = await storage.addMessage({
+        content: botResponse,
+        sender: "bot"
+      });
+
+      res.json({ userMessage, botMessage });
+    } catch (error) {
+      console.error('Error processing message:', error);
+      res.status(500).json({ error: "Failed to process message" });
     }
-
-    // Save user message
-    const userMessage = await storage.addMessage({
-      content: result.data.content,
-      sender: "user"
-    });
-
-    // Generate and save bot response
-    const botResponse = generateResponse(result.data.content);
-    const botMessage = await storage.addMessage({
-      content: botResponse,
-      sender: "bot"
-    });
-
-    res.json({ userMessage, botMessage });
   });
 
   app.post("/api/clear", async (_req, res) => {
