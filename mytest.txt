@@ -1,2 +1,4 @@
 # this is where the tests will be written
-# the test include the capability of the 
+# the test include the capability of the ai agent 
+# this would help the agent achieve better results
+# during generation of responses
