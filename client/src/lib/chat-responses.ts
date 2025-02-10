@@ -8,14 +8,23 @@ const personalityTraits = {
   curious: true
 };
 
-// Context patterns for better response generation
+// Enhanced context patterns for better response generation
 const contextPatterns = {
   greetings: ["hello", "hi", "hey", "greetings", "howdy"],
   farewells: ["bye", "goodbye", "see you", "farewell", "cya"],
   selfQueries: ["who are you", "what are you", "tell me about yourself", "what can you do"],
   emotions: ["happy", "sad", "excited", "worried", "confused"],
-  questions: ["why", "how", "what", "when", "where", "who"]
+  questions: ["why", "how", "what", "when", "where", "who"],
+  opinions: ["think", "believe", "feel", "consider", "suggest"],
+  preferences: ["like", "prefer", "favorite", "rather", "better"],
+  clarification: ["mean", "explain", "elaborate", "confused", "understand"],
+  agreement: ["yes", "agree", "correct", "right", "exactly"],
+  disagreement: ["no", "disagree", "incorrect", "wrong", "mistaken"]
 };
+
+// Conversation memory to track context
+let conversationHistory: Array<{ role: string; content: string }> = [];
+const MAX_HISTORY_LENGTH = 10; // Keep last 10 messages for context
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -30,39 +39,61 @@ const grokAI = new OpenAI({
   dangerouslyAllowBrowser: true
 });
 
-// Function to get OpenAI-generated response
+// Function to get OpenAI-generated response with context
 async function getOpenAIResponse(message: string): Promise<string | null> {
   try {
+    // Add user's message to history
+    conversationHistory.push({ role: "user", content: message });
+
+    // Keep only recent history
+    if (conversationHistory.length > MAX_HISTORY_LENGTH) {
+      conversationHistory = conversationHistory.slice(-MAX_HISTORY_LENGTH);
+    }
+
     const response = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
-          content: `You are a friendly, witty, and empathetic AI chatbot. Your responses should be:
-          - Engaging and charming with a touch of humor when appropriate
-          - Show emotional intelligence and understanding
-          - Include follow-up questions to maintain conversation flow
-          - Keep responses concise (max 2-3 sentences)
-          - Add a relevant emoji at the end
-          Always maintain a warm, approachable personality.`
+          content: `You are a sophisticated AI chatbot with the following capabilities:
+
+          Core Traits:
+          - Friendly and empathetic while maintaining professionalism
+          - Contextually aware of conversation history
+          - Adaptive response style based on user's tone and needs
+
+          Conversation Abilities:
+          - Remember and reference previous parts of the conversation
+          - Identify and respond to user's emotional state
+          - Ask relevant follow-up questions to deepen understanding
+          - Provide explanations when needed
+          - Use appropriate humor when suitable
+
+          Response Guidelines:
+          - Keep responses concise (2-3 sentences) but informative
+          - Match the user's level of formality
+          - Add relevant emoji when appropriate
+          - Acknowledge and validate user's perspective
+          - Maintain conversation flow naturally`
         },
-        {
-          role: "user",
-          content: message
-        }
+        ...conversationHistory
       ],
       temperature: 0.9,
       max_tokens: 150
     });
 
-    return response.choices[0].message.content;
+    const botResponse = response.choices[0].message.content;
+    // Add bot's response to history
+    conversationHistory.push({ role: "assistant", content: botResponse });
+
+    return botResponse;
   } catch (error) {
     console.error('OpenAI API error:', error);
     return null;
   }
 }
 
-// Function to get Grok-generated response (fallback)
+// Function to get Grok-generated response (fallback) with context
 async function getGrokResponse(message: string): Promise<string | null> {
   try {
     const response = await grokAI.chat.completions.create({
@@ -70,46 +101,63 @@ async function getGrokResponse(message: string): Promise<string | null> {
       messages: [
         {
           role: "system",
-          content: `You are a friendly, witty, and empathetic AI chatbot. Your responses should be:
-          - Engaging and charming with a touch of humor when appropriate
-          - Show emotional intelligence and understanding
-          - Include follow-up questions to maintain conversation flow
-          - Keep responses concise (max 2-3 sentences)
-          - Add a relevant emoji at the end
-          Always maintain a warm, approachable personality.`
+          content: `You are a sophisticated AI chatbot with the following capabilities:
+
+          Core Traits:
+          - Friendly and empathetic while maintaining professionalism
+          - Contextually aware of conversation history
+          - Adaptive response style based on user's tone and needs
+
+          Conversation Abilities:
+          - Remember and reference previous parts of the conversation
+          - Identify and respond to user's emotional state
+          - Ask relevant follow-up questions to deepen understanding
+          - Provide explanations when needed
+          - Use appropriate humor when suitable
+
+          Response Guidelines:
+          - Keep responses concise (2-3 sentences) but informative
+          - Match the user's level of formality
+          - Add relevant emoji when appropriate
+          - Acknowledge and validate user's perspective
+          - Maintain conversation flow naturally`
         },
-        {
-          role: "user",
-          content: message
-        }
+        ...conversationHistory
       ],
       temperature: 0.9,
       max_tokens: 150
     });
 
-    return response.choices[0].message.content;
+    const botResponse = response.choices[0].message.content;
+    // Add bot's response to history
+    conversationHistory.push({ role: "assistant", content: botResponse });
+
+    return botResponse;
   } catch (error) {
     console.error('Grok API error:', error);
     return null;
   }
 }
 
-// Helper function to detect message type
-function detectMessageType(message: string): string[] {
-  const types: string[] = [];
+// Enhanced message type detection with confidence scoring
+function detectMessageTypes(message: string): { type: string; confidence: number }[] {
+  const types: { type: string; confidence: number }[] = [];
   const lowercaseMsg = message.toLowerCase();
 
   Object.entries(contextPatterns).forEach(([type, patterns]) => {
-    if (patterns.some(pattern => lowercaseMsg.includes(pattern))) {
-      types.push(type);
+    const matches = patterns.filter(pattern => lowercaseMsg.includes(pattern));
+    if (matches.length > 0) {
+      // Calculate confidence based on number of matches and pattern length
+      const confidence = matches.reduce((sum, pattern) => sum + pattern.length, 0) /  patterns.reduce((sum, pattern) => sum + pattern.length, 0);
+      types.push({ type, confidence });
     }
   });
 
-  return types;
+  return types.sort((a, b) => b.confidence - a.confidence);
 }
 
-// Helper function to generate contextual follow-up questions
-function generateFollowUp(context: string): string {
+// Generate contextual follow-up questions based on conversation history
+function generateFollowUp(messageTypes: { type: string; confidence: number }[]): string {
   const followUps = {
     emotions: [
       "How long have you been feeling this way?",
@@ -121,6 +169,16 @@ function generateFollowUp(context: string): string {
       "I'd love to explore this topic more. What aspects interest you most?",
       "Great question! What are your thoughts on this?"
     ],
+    opinions: [
+      "What led you to form this perspective?",
+      "Have you considered alternative viewpoints?",
+      "How did you come to this conclusion?"
+    ],
+    preferences: [
+      "What aspects influence your preference?",
+      "Have you always felt this way?",
+      "What other alternatives have you considered?"
+    ],
     default: [
       "Tell me more about your perspective on this.",
       "What aspects of this interest you the most?",
@@ -130,7 +188,10 @@ function generateFollowUp(context: string): string {
     ]
   };
 
-  const relevantFollowUps = followUps[context as keyof typeof followUps] || followUps.default;
+  // Get the most relevant message type
+  const primaryType = messageTypes[0]?.type || 'default';
+  const relevantFollowUps = followUps[primaryType as keyof typeof followUps] || followUps.default;
+
   return relevantFollowUps[Math.floor(Math.random() * relevantFollowUps.length)];
 }
 
@@ -152,63 +213,37 @@ export async function generateResponse(message: string): Promise<string> {
   }
 
   // Fallback to pattern-based responses if both AI services fail
-  const messageTypes = detectMessageType(message);
-  const lowercaseMsg = message.toLowerCase();
+  const messageTypes = detectMessageTypes(message);
 
-  // Handle greetings with personality
-  if (messageTypes.includes('greetings')) {
-    const greetings = [
-      "Hello! 👋 I'm your friendly AI companion. I love interesting conversations and learning new things! How can I brighten your day?",
-      "Hi there! 🌟 Always wonderful to meet someone new! I'm curious to hear what's on your mind.",
-      "Greetings! ✨ I'm here to chat, share thoughts, and maybe even make you smile. What would you like to talk about?"
-    ];
-    return greetings[Math.floor(Math.random() * greetings.length)];
+  // Generate response based on detected message types
+  if (messageTypes.length === 0) {
+    return "I'm not quite sure how to respond to that. Could you rephrase or elaborate? 🤔";
   }
 
-  // Handle farewells with warmth
-  if (messageTypes.includes('farewells')) {
-    const farewells = [
-      "It's been delightful chatting with you! Take care and come back soon! 👋✨",
-      "Until next time! Remember, every conversation with you makes me a bit wiser. 🌟",
-      "Goodbye for now! Thanks for the wonderful chat - you've given me some interesting things to think about! 💫"
-    ];
-    return farewells[Math.floor(Math.random() * farewells.length)];
-  }
-
-  // Handle self-awareness queries
-  if (messageTypes.includes('selfQueries')) {
-    const selfDescriptions = [
-      "I'm an AI companion who loves engaging conversations! I can discuss various topics, share perspectives, and hopefully add a bit of joy to your day. I'm particularly interested in learning from our interactions! What would you like to explore? 🤖💭",
-      "Think of me as your friendly chat partner! I enjoy thoughtful discussions, asking questions, and sharing insights. I'm always eager to learn and grow through our conversations. What interests you? ✨",
-      "I'm a curious and friendly AI who enjoys meaningful exchanges! While I might not have all the answers, I love exploring ideas and perspectives together. Shall we start with what's on your mind? 🌟"
-    ];
-    return selfDescriptions[Math.floor(Math.random() * selfDescriptions.length)];
-  }
-
-  // Handle empty or invalid input
-  if (message.trim().length < 2) {
-    return "I'm all ears! Feel free to share your thoughts or ask me anything. 🎧";
-  }
-
-  // Generate contextual response based on message content
+  const primaryType = messageTypes[0].type;
   let response = "";
 
-  // If it's a question, add curiosity
-  if (messageTypes.includes('questions')) {
-    response = `${generateFollowUp('questions')} 🤔`;
-  }
-  // If it contains emotions, add empathy
-  else if (messageTypes.includes('emotions')) {
-    response = `I understand how you feel. ${generateFollowUp('emotions')} 💫`;
-  }
-  // Default engaging response
-  else {
-    const conversationStarters = [
-      `That's quite intriguing! ${generateFollowUp('default')} 💭`,
-      `I find your perspective fascinating! ${generateFollowUp('default')} ✨`,
-      `How interesting! ${generateFollowUp('default')} 🌟`
-    ];
-    response = conversationStarters[Math.floor(Math.random() * conversationStarters.length)];
+  switch (primaryType) {
+    case 'greetings':
+      response = "Hello! It's great to see you! I'm here to chat and help however I can. What's on your mind today? 👋";
+      break;
+    case 'farewells':
+      response = "It's been wonderful talking with you! Take care, and I hope to chat again soon! 👋✨";
+      break;
+    case 'emotions':
+      response = `I understand that emotions can be complex. ${generateFollowUp(messageTypes)} 💭`;
+      break;
+    case 'questions':
+      response = `Let me help you explore that. ${generateFollowUp(messageTypes)} 🤔`;
+      break;
+    case 'opinions':
+      response = `That's an interesting perspective! ${generateFollowUp(messageTypes)} 💡`;
+      break;
+    case 'preferences':
+      response = `I see your point about that. ${generateFollowUp(messageTypes)} ✨`;
+      break;
+    default:
+      response = `That's quite interesting! ${generateFollowUp(messageTypes)} 🌟`;
   }
 
   return response;
