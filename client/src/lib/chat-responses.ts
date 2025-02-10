@@ -62,6 +62,33 @@ async function getOpenAIResponse(message: string): Promise<string | null> {
   }
 }
 
+// Function to extract text from Word document
+async function getDocumentContent(): Promise<string> {
+  try {
+    const mammoth = require('mammoth');
+    const fs = require('fs');
+    const result = await mammoth.extractRawText({path: "./attached_assets/Knowledge Base.docx"});
+    return result.value || '';
+  } catch (error) {
+    console.error('Error reading document:', error);
+    return '';
+  }
+}
+
+// Function to find relevant document content
+function findRelevantContent(message: string, documentContent: string): string {
+  const sentences = documentContent.split(/[.!?]+/);
+  const keywords = message.toLowerCase().split(' ');
+  
+  const relevantSentences = sentences.filter(sentence => 
+    keywords.some(keyword => 
+      sentence.toLowerCase().includes(keyword)
+    )
+  ).slice(0, 2);
+
+  return relevantSentences.join('. ') || 'I found some interesting information about that!';
+}
+
 // Function to get Grok-generated response (fallback)
 async function getGrokResponse(message: string): Promise<string | null> {
   try {
@@ -201,12 +228,14 @@ export async function generateResponse(message: string): Promise<string> {
   else if (messageTypes.includes('emotions')) {
     response = `I understand how you feel. ${generateFollowUp('emotions')} 💫`;
   }
-  // Default engaging response
+  // Default engaging response with document content
   else {
+    const documentContent = await getDocumentContent();
+    const relevantInfo = findRelevantContent(message, documentContent);
     const conversationStarters = [
-      `That's quite intriguing! ${generateFollowUp('default')} 💭`,
-      `I find your perspective fascinating! ${generateFollowUp('default')} ✨`,
-      `How interesting! ${generateFollowUp('default')} 🌟`
+      `That's quite intriguing! Here's what I found: ${relevantInfo} ${generateFollowUp('default')} 💭`,
+      `I found some relevant information: ${relevantInfo} What are your thoughts on this? ✨`,
+      `How interesting! Based on my knowledge: ${relevantInfo} ${generateFollowUp('default')} 🌟`
     ];
     response = conversationStarters[Math.floor(Math.random() * conversationStarters.length)];
   }
