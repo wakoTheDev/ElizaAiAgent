@@ -75,18 +75,32 @@ async function getDocumentContent(): Promise<string> {
   }
 }
 
-// Function to find relevant document content
+import { knowledgeCorpus } from './corpus';
+
+// Function to find relevant content from corpus and document
 function findRelevantContent(message: string, documentContent: string): string {
-  const sentences = documentContent.split(/[.!?]+/);
   const keywords = message.toLowerCase().split(' ');
-  
-  const relevantSentences = sentences.filter(sentence => 
+  let relevantContent: string[] = [];
+
+  // Search corpus
+  Object.values(knowledgeCorpus).forEach(category => {
+    category.forEach(item => {
+      if (keywords.some(keyword => item.toLowerCase().includes(keyword))) {
+        relevantContent.push(item);
+      }
+    });
+  });
+
+  // Search document content
+  const sentences = documentContent.split(/[.!?]+/);
+  const documentMatches = sentences.filter(sentence => 
     keywords.some(keyword => 
       sentence.toLowerCase().includes(keyword)
     )
-  ).slice(0, 2);
+  );
 
-  return relevantSentences.join('. ') || 'I found some interesting information about that!';
+  relevantContent = [...relevantContent, ...documentMatches];
+  return relevantContent.slice(0, 2).join('. ') || 'I found some interesting information about that!';
 }
 
 // Function to get Grok-generated response (fallback)
