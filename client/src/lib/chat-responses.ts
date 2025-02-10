@@ -1,31 +1,5 @@
 import OpenAI from "openai";
 
-// Personality traits and conversation patterns
-const personalityTraits = {
-  friendly: true,
-  witty: true,
-  empathetic: true,
-  curious: true
-};
-
-// Enhanced context patterns for better response generation
-const contextPatterns = {
-  greetings: ["hello", "hi", "hey", "greetings", "howdy"],
-  farewells: ["bye", "goodbye", "see you", "farewell", "cya"],
-  selfQueries: ["who are you", "what are you", "tell me about yourself", "what can you do"],
-  emotions: ["happy", "sad", "excited", "worried", "confused"],
-  questions: ["why", "how", "what", "when", "where", "who"],
-  opinions: ["think", "believe", "feel", "consider", "suggest"],
-  preferences: ["like", "prefer", "favorite", "rather", "better"],
-  clarification: ["mean", "explain", "elaborate", "confused", "understand"],
-  agreement: ["yes", "agree", "correct", "right", "exactly"],
-  disagreement: ["no", "disagree", "incorrect", "wrong", "mistaken"]
-};
-
-// Conversation memory to track context
-let conversationHistory: Array<{ role: string; content: string }> = [];
-const MAX_HISTORY_LENGTH = 10; // Keep last 10 messages for context
-
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -39,13 +13,32 @@ const grokAI = new OpenAI({
   dangerouslyAllowBrowser: true
 });
 
-// Function to get OpenAI-generated response with context
+// Conversation memory with proper typing
+type ConversationMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
+
+let conversationHistory: ConversationMessage[] = [];
+const MAX_HISTORY_LENGTH = 10;
+
+// System prompt for AI models
+const SYSTEM_PROMPT = `You are a helpful and engaging AI assistant. Your responses should be:
+- Natural and conversational
+- Concise but informative (1-3 sentences)
+- Include follow-up questions when appropriate
+- Show understanding of context from previous messages
+- Use emojis sparingly and naturally
+
+Keep the conversation flowing naturally while being helpful and friendly.`;
+
+// Function to get OpenAI response
 async function getOpenAIResponse(message: string): Promise<string | null> {
   try {
-    // Add user's message to history
+    // Add user message to history
     conversationHistory.push({ role: "user", content: message });
 
-    // Keep only recent history
+    // Maintain history length
     if (conversationHistory.length > MAX_HISTORY_LENGTH) {
       conversationHistory = conversationHistory.slice(-MAX_HISTORY_LENGTH);
     }
@@ -53,37 +46,14 @@ async function getOpenAIResponse(message: string): Promise<string | null> {
     const response = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
-        {
-          role: "system",
-          content: `You are a sophisticated AI chatbot with the following capabilities:
-
-          Core Traits:
-          - Friendly and empathetic while maintaining professionalism
-          - Contextually aware of conversation history
-          - Adaptive response style based on user's tone and needs
-
-          Conversation Abilities:
-          - Remember and reference previous parts of the conversation
-          - Identify and respond to user's emotional state
-          - Ask relevant follow-up questions to deepen understanding
-          - Provide explanations when needed
-          - Use appropriate humor when suitable
-
-          Response Guidelines:
-          - Keep responses concise (2-3 sentences) but informative
-          - Match the user's level of formality
-          - Add relevant emoji when appropriate
-          - Acknowledge and validate user's perspective
-          - Maintain conversation flow naturally`
-        },
+        { role: "system", content: SYSTEM_PROMPT },
         ...conversationHistory
       ],
-      temperature: 0.9,
+      temperature: 0.7,
       max_tokens: 150
     });
 
-    const botResponse = response.choices[0].message.content;
-    // Add bot's response to history
+    const botResponse = response.choices[0].message.content || "";
     conversationHistory.push({ role: "assistant", content: botResponse });
 
     return botResponse;
@@ -93,43 +63,20 @@ async function getOpenAIResponse(message: string): Promise<string | null> {
   }
 }
 
-// Function to get Grok-generated response (fallback) with context
+// Function to get Grok response
 async function getGrokResponse(message: string): Promise<string | null> {
   try {
     const response = await grokAI.chat.completions.create({
       model: "grok-2-1212",
       messages: [
-        {
-          role: "system",
-          content: `You are a sophisticated AI chatbot with the following capabilities:
-
-          Core Traits:
-          - Friendly and empathetic while maintaining professionalism
-          - Contextually aware of conversation history
-          - Adaptive response style based on user's tone and needs
-
-          Conversation Abilities:
-          - Remember and reference previous parts of the conversation
-          - Identify and respond to user's emotional state
-          - Ask relevant follow-up questions to deepen understanding
-          - Provide explanations when needed
-          - Use appropriate humor when suitable
-
-          Response Guidelines:
-          - Keep responses concise (2-3 sentences) but informative
-          - Match the user's level of formality
-          - Add relevant emoji when appropriate
-          - Acknowledge and validate user's perspective
-          - Maintain conversation flow naturally`
-        },
+        { role: "system", content: SYSTEM_PROMPT },
         ...conversationHistory
       ],
-      temperature: 0.9,
+      temperature: 0.7,
       max_tokens: 150
     });
 
-    const botResponse = response.choices[0].message.content;
-    // Add bot's response to history
+    const botResponse = response.choices[0].message.content || "";
     conversationHistory.push({ role: "assistant", content: botResponse });
 
     return botResponse;
@@ -139,62 +86,69 @@ async function getGrokResponse(message: string): Promise<string | null> {
   }
 }
 
-// Enhanced message type detection with confidence scoring
-function detectMessageTypes(message: string): { type: string; confidence: number }[] {
-  const types: { type: string; confidence: number }[] = [];
+// Simple pattern matching for fallback responses
+const patterns = {
+  greetings: ["hello", "hi", "hey", "greetings"],
+  questions: ["what", "why", "how", "when", "where", "who"],
+  thanks: ["thank", "thanks", "appreciate"],
+  goodbye: ["bye", "goodbye", "see you", "farewell"]
+};
+
+function matchPattern(message: string): string {
   const lowercaseMsg = message.toLowerCase();
 
-  Object.entries(contextPatterns).forEach(([type, patterns]) => {
-    const matches = patterns.filter(pattern => lowercaseMsg.includes(pattern));
-    if (matches.length > 0) {
-      // Calculate confidence based on number of matches and pattern length
-      const confidence = matches.reduce((sum, pattern) => sum + pattern.length, 0) /  patterns.reduce((sum, pattern) => sum + pattern.length, 0);
-      types.push({ type, confidence });
-    }
-  });
-
-  return types.sort((a, b) => b.confidence - a.confidence);
+  if (patterns.greetings.some(word => lowercaseMsg.includes(word))) {
+    return "greetings";
+  }
+  if (patterns.questions.some(word => lowercaseMsg.includes(word))) {
+    return "questions";
+  }
+  if (patterns.thanks.some(word => lowercaseMsg.includes(word))) {
+    return "thanks";
+  }
+  if (patterns.goodbye.some(word => lowercaseMsg.includes(word))) {
+    return "goodbye";
+  }
+  return "general";
 }
 
-// Generate contextual follow-up questions based on conversation history
-function generateFollowUp(messageTypes: { type: string; confidence: number }[]): string {
-  const followUps = {
-    emotions: [
-      "How long have you been feeling this way?",
-      "What do you think triggered this feeling?",
-      "Would you like to explore this feeling further?"
+// Generate fallback response
+function getFallbackResponse(message: string): string {
+  const type = matchPattern(message);
+
+  const responses = {
+    greetings: [
+      "Hello! How can I help you today? 👋",
+      "Hi there! What's on your mind?",
+      "Hey! I'm here to help - what would you like to discuss?"
     ],
     questions: [
-      "That's an interesting question! What made you curious about this?",
-      "I'd love to explore this topic more. What aspects interest you most?",
-      "Great question! What are your thoughts on this?"
+      "That's an interesting question. Let me help you explore that.",
+      "I'd be happy to help you find an answer. Could you tell me more?",
+      "Great question! Let's work through this together."
     ],
-    opinions: [
-      "What led you to form this perspective?",
-      "Have you considered alternative viewpoints?",
-      "How did you come to this conclusion?"
+    thanks: [
+      "You're welcome! Is there anything else you'd like to discuss?",
+      "Glad I could help! Let me know if you need anything else.",
+      "It's my pleasure! Feel free to ask if you have more questions."
     ],
-    preferences: [
-      "What aspects influence your preference?",
-      "Have you always felt this way?",
-      "What other alternatives have you considered?"
+    goodbye: [
+      "Goodbye! Have a great day! 👋",
+      "Take care! Come back anytime you'd like to chat.",
+      "See you later! It was nice talking with you!"
     ],
-    default: [
-      "Tell me more about your perspective on this.",
-      "What aspects of this interest you the most?",
-      "How did you come to think about this?",
-      "That's fascinating! What else comes to mind?",
-      "I'd love to hear more about your thoughts on this."
+    general: [
+      "I'm listening! Tell me more about that.",
+      "That's interesting! Would you like to elaborate?",
+      "I'm here to help. What else would you like to discuss?"
     ]
   };
 
-  // Get the most relevant message type
-  const primaryType = messageTypes[0]?.type || 'default';
-  const relevantFollowUps = followUps[primaryType as keyof typeof followUps] || followUps.default;
-
-  return relevantFollowUps[Math.floor(Math.random() * relevantFollowUps.length)];
+  const options = responses[type as keyof typeof responses];
+  return options[Math.floor(Math.random() * options.length)];
 }
 
+// Main response generation function
 export async function generateResponse(message: string): Promise<string> {
   try {
     // Try OpenAI first
@@ -203,7 +157,7 @@ export async function generateResponse(message: string): Promise<string> {
       return openAIResponse;
     }
 
-    // If OpenAI fails, try Grok as fallback
+    // If OpenAI fails, try Grok
     const grokResponse = await getGrokResponse(message);
     if (grokResponse) {
       return grokResponse;
@@ -212,39 +166,6 @@ export async function generateResponse(message: string): Promise<string> {
     console.error('Error generating AI responses:', error);
   }
 
-  // Fallback to pattern-based responses if both AI services fail
-  const messageTypes = detectMessageTypes(message);
-
-  // Generate response based on detected message types
-  if (messageTypes.length === 0) {
-    return "I'm not quite sure how to respond to that. Could you rephrase or elaborate? 🤔";
-  }
-
-  const primaryType = messageTypes[0].type;
-  let response = "";
-
-  switch (primaryType) {
-    case 'greetings':
-      response = "Hello! It's great to see you! I'm here to chat and help however I can. What's on your mind today? 👋";
-      break;
-    case 'farewells':
-      response = "It's been wonderful talking with you! Take care, and I hope to chat again soon! 👋✨";
-      break;
-    case 'emotions':
-      response = `I understand that emotions can be complex. ${generateFollowUp(messageTypes)} 💭`;
-      break;
-    case 'questions':
-      response = `Let me help you explore that. ${generateFollowUp(messageTypes)} 🤔`;
-      break;
-    case 'opinions':
-      response = `That's an interesting perspective! ${generateFollowUp(messageTypes)} 💡`;
-      break;
-    case 'preferences':
-      response = `I see your point about that. ${generateFollowUp(messageTypes)} ✨`;
-      break;
-    default:
-      response = `That's quite interesting! ${generateFollowUp(messageTypes)} 🌟`;
-  }
-
-  return response;
+  // If both AI services fail, use fallback response
+  return getFallbackResponse(message);
 }
