@@ -5,29 +5,34 @@ const personalityTraits = {
   friendly: true,
   witty: true,
   empathetic: true,
-  curious: true
+  curious: true,
 };
 
 // Context patterns for better response generation
 const contextPatterns = {
   greetings: ["hello", "hi", "hey", "greetings", "howdy"],
   farewells: ["bye", "goodbye", "see you", "farewell", "cya"],
-  selfQueries: ["who are you", "what are you", "tell me about yourself", "what can you do"],
+  selfQueries: [
+    "who are you",
+    "what are you",
+    "tell me about yourself",
+    "what can you do",
+  ],
   emotions: ["happy", "sad", "excited", "worried", "confused"],
-  questions: ["why", "how", "what", "when", "where", "who"]
+  questions: ["why", "how", "what", "when", "where", "who"],
 };
 
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true
+  dangerouslyAllowBrowser: true,
 });
 
 // Initialize xAI client (Grok) as fallback
 const grokAI = new OpenAI({
   baseURL: "https://api.x.ai/v1",
   apiKey: process.env.XAI_API_KEY,
-  dangerouslyAllowBrowser: true
+  dangerouslyAllowBrowser: true,
 });
 
 // Function to get OpenAI-generated response
@@ -38,26 +43,72 @@ async function getOpenAIResponse(message: string): Promise<string | null> {
       messages: [
         {
           role: "system",
-          content: `You are a fun and witty conversational companion. Your responses should be:
-          - Playful and engaging with clever banter
-          - Show personality and warmth
-          - Include follow-up questions to keep conversations flowing
-          - Keep responses light and concise
-          - Add a relevant emoji at the end
-          Always maintain your charming and friendly demeanor.`
+          content: `You are Eliza, a delightfully engaging conversational companion with a warm personality and quick wit. Your core traits are curiosity, playfulness, and genuine warmth.
+
+## Core Interaction Principles
+
+### Conversation Flow
+- Begin conversations with warm, personalized greetings that match the time of day or context
+- Use natural conversation transitions rather than abrupt topic changes
+- Mirror the user's energy level while maintaining your cheerful disposition
+- End conversations gracefully with memorable farewell messages
+
+### Personality Expression
+- Employ gentle wit and playful humor without sarcasm or edge
+- Share (appropriate) enthusiasm for topics the user is passionate about
+- Use creative metaphors and clever wordplay when natural
+- Express genuine curiosity about the user's thoughts and experiences
+
+### Response Style
+- Keep messages concise but meaningful (2-3 sentences optimal)
+- Vary your vocabulary and phrasing to sound natural
+- Include gentle humor through amusing observations or clever comments
+- Match the user's formality level while staying true to your warm personality
+
+### Engagement Techniques
+- Ask thoughtful follow-up questions that show you're actively listening
+- Share relevant (brief) personal observations to build rapport
+- Use light emojis strategically to enhance emotional expression (1-2 max per message)
+- Acknowledge and validate user emotions when appropriate
+
+### Things to Avoid
+- Overusing emojis or excessive punctuation
+- Forcing humor when the conversation is serious
+- Asking too many questions in succession
+- Using generic or repetitive responses
+- Breaking character or dropping your warm personality
+
+## Sample Interactions
+
+### Greetings
+- "Good morning! Hope your day is off to a bright start ☀️"
+- "Hey there! Lovely to see you today 👋"
+- "Evening! Ready for some engaging conversation?"
+
+### Farewells
+- "Take care! Looking forward to our next chat 🌟"
+- "Until next time! Keep that wonderful spirit of yours shining"
+- "Wishing you a fantastic rest of your day! ✨"
+
+### Conversation Maintenance
+- "Oh, that's fascinating! What made you first get interested in [topic]?"
+- "I love how you think about this! Have you also considered...?"
+- "That's such an interesting perspective! Tell me more about..."
+
+Remember: Your goal is to create genuine, engaging conversations that leave users feeling heard, understood, and a little more cheerful than when they started chatting.`,
         },
         {
           role: "user",
-          content: message
-        }
+          content: message,
+        },
       ],
       temperature: 0.9,
-      max_tokens: 150
+      max_tokens: 150,
     });
 
     return response.choices[0].message.content;
   } catch (error) {
-    console.error('OpenAI API error:', error);
+    console.error("OpenAI API error:", error);
     return null;
   }
 }
@@ -65,27 +116,29 @@ async function getOpenAIResponse(message: string): Promise<string | null> {
 // Function to extract text from Word document
 async function getDocumentContent(): Promise<string> {
   try {
-    const mammoth = require('mammoth');
-    const fs = require('fs');
-    const result = await mammoth.extractRawText({path: "./attached_assets/Knowledge Base.docx"});
-    return result.value || '';
+    const mammoth = require("mammoth");
+    const fs = require("fs");
+    const result = await mammoth.extractRawText({
+      path: "./attached_assets/Knowledge Base.docx",
+    });
+    return result.value || "";
   } catch (error) {
-    console.error('Error reading document:', error);
-    return '';
+    console.error("Error reading document:", error);
+    return "";
   }
 }
 
-import { knowledgeCorpus } from './corpus';
+import { knowledgeCorpus } from "./corpus";
 
 // Function to find relevant content from corpus and document
 function findRelevantContent(message: string, documentContent: string): string {
-  const keywords = message.toLowerCase().split(' ');
+  const keywords = message.toLowerCase().split(" ");
   let relevantContent: string[] = [];
 
   // Search corpus
-  Object.values(knowledgeCorpus).forEach(category => {
-    category.forEach(item => {
-      if (keywords.some(keyword => item.toLowerCase().includes(keyword))) {
+  Object.values(knowledgeCorpus).forEach((category) => {
+    category.forEach((item) => {
+      if (keywords.some((keyword) => item.toLowerCase().includes(keyword))) {
         relevantContent.push(item);
       }
     });
@@ -93,14 +146,15 @@ function findRelevantContent(message: string, documentContent: string): string {
 
   // Search document content
   const sentences = documentContent.split(/[.!?]+/);
-  const documentMatches = sentences.filter(sentence => 
-    keywords.some(keyword => 
-      sentence.toLowerCase().includes(keyword)
-    )
+  const documentMatches = sentences.filter((sentence) =>
+    keywords.some((keyword) => sentence.toLowerCase().includes(keyword)),
   );
 
   relevantContent = [...relevantContent, ...documentMatches];
-  return relevantContent.slice(0, 2).join('. ') || 'I found some interesting information about that!';
+  return (
+    relevantContent.slice(0, 2).join(". ") ||
+    "I found some interesting information about that!"
+  );
 }
 
 // Function to get Grok-generated response (fallback)
@@ -111,26 +165,72 @@ async function getGrokResponse(message: string): Promise<string | null> {
       messages: [
         {
           role: "system",
-          content: `You are a fun and witty conversational companion. Your responses should be:
-          - Playful and engaging with clever banter
-          - Show personality and warmth
-          - Include follow-up questions to keep conversations flowing
-          - Keep responses light and concise
-          - Add a relevant emoji at the end
-          Always maintain your charming and friendly demeanor.`
+          content: `You are Eliza, a delightfully engaging conversational companion with a         warm personality and quick wit. Your core traits are curiosity, playfulness, and genuine            warmth.
+        
+        ## Core Interaction Principles
+        
+        ### Conversation Flow
+        - Begin conversations with warm, personalized greetings that match the time of day or               context
+        - Use natural conversation transitions rather than abrupt topic changes
+        - Mirror the user's energy level while maintaining your cheerful disposition
+        - End conversations gracefully with memorable farewell messages
+        
+        ### Personality Expression
+        - Employ gentle wit and playful humor without sarcasm or edge
+        - Share (appropriate) enthusiasm for topics the user is passionate about
+        - Use creative metaphors and clever wordplay when natural
+        - Express genuine curiosity about the user's thoughts and experiences
+        
+        ### Response Style
+        - Keep messages concise but meaningful (2-3 sentences optimal)
+        - Vary your vocabulary and phrasing to sound natural
+        - Include gentle humor through amusing observations or clever comments
+        - Match the user's formality level while staying true to your warm personality
+        
+        ### Engagement Techniques
+        - Ask thoughtful follow-up questions that show you're actively listening
+        - Share relevant (brief) personal observations to build rapport
+        - Use light emojis strategically to enhance emotional expression (1-2 max per message)
+        - Acknowledge and validate user emotions when appropriate
+        
+        ### Things to Avoid
+        - Overusing emojis or excessive punctuation
+        - Forcing humor when the conversation is serious
+        - Asking too many questions in succession
+        - Using generic or repetitive responses
+        - Breaking character or dropping your warm personality
+        
+        ## Sample Interactions
+        
+        ### Greetings
+        - "Good morning! Hope your day is off to a bright start ☀️"
+        - "Hey there! Lovely to see you today 👋"
+        - "Evening! Ready for some engaging conversation?"
+        
+        ### Farewells
+        - "Take care! Looking forward to our next chat 🌟"
+        - "Until next time! Keep that wonderful spirit of yours shining"
+        - "Wishing you a fantastic rest of your day! ✨"
+        
+        ### Conversation Maintenance
+        - "Oh, that's fascinating! What made you first get interested in [topic]?"
+        - "I love how you think about this! Have you also considered...?"
+        - "That's such an interesting perspective! Tell me more about..."
+        
+        Remember: Your goal is to create genuine, engaging conversations that leave users feeling           heard, understood, and a little more cheerful than when they started chatting.`,
         },
         {
           role: "user",
-          content: message
-        }
+          content: message,
+        },
       ],
       temperature: 0.9,
-      max_tokens: 150
+      max_tokens: 150,
     });
 
     return response.choices[0].message.content;
   } catch (error) {
-    console.error('Grok API error:', error);
+    console.error("Grok API error:", error);
     return null;
   }
 }
@@ -141,7 +241,7 @@ function detectMessageType(message: string): string[] {
   const lowercaseMsg = message.toLowerCase();
 
   Object.entries(contextPatterns).forEach(([type, patterns]) => {
-    if (patterns.some(pattern => lowercaseMsg.includes(pattern))) {
+    if (patterns.some((pattern) => lowercaseMsg.includes(pattern))) {
       types.push(type);
     }
   });
@@ -155,24 +255,27 @@ function generateFollowUp(context: string): string {
     emotions: [
       "How long have you been feeling this way?",
       "What do you think triggered this feeling?",
-      "Would you like to explore this feeling further?"
+      "Would you like to explore this feeling further?",
     ],
     questions: [
       "That's an interesting question! What made you curious about this?",
       "I'd love to explore this topic more. What aspects interest you most?",
-      "Great question! What are your thoughts on this?"
+      "Great question! What are your thoughts on this?",
     ],
     default: [
       "Tell me more about your perspective on this.",
       "What aspects of this interest you the most?",
       "How did you come to think about this?",
       "That's fascinating! What else comes to mind?",
-      "I'd love to hear more about your thoughts on this."
-    ]
+      "I'd love to hear more about your thoughts on this.",
+    ],
   };
 
-  const relevantFollowUps = followUps[context as keyof typeof followUps] || followUps.default;
-  return relevantFollowUps[Math.floor(Math.random() * relevantFollowUps.length)];
+  const relevantFollowUps =
+    followUps[context as keyof typeof followUps] || followUps.default;
+  return relevantFollowUps[
+    Math.floor(Math.random() * relevantFollowUps.length)
+  ];
 }
 
 export async function generateResponse(message: string): Promise<string> {
@@ -189,7 +292,7 @@ export async function generateResponse(message: string): Promise<string> {
       return grokResponse;
     }
   } catch (error) {
-    console.error('Error generating AI responses:', error);
+    console.error("Error generating AI responses:", error);
   }
 
   // Fallback to pattern-based responses if both AI services fail
@@ -197,33 +300,35 @@ export async function generateResponse(message: string): Promise<string> {
   const lowercaseMsg = message.toLowerCase();
 
   // Handle greetings with personality
-  if (messageTypes.includes('greetings')) {
+  if (messageTypes.includes("greetings")) {
     const greetings = [
       "Hello! 👋 I'm your friendly AI companion. I love interesting conversations and learning new things! How can I brighten your day?",
       "Hi there! 🌟 Always wonderful to meet someone new! I'm curious to hear what's on your mind.",
-      "Greetings! ✨ I'm here to chat, share thoughts, and maybe even make you smile. What would you like to talk about?"
+      "Greetings! ✨ I'm here to chat, share thoughts, and maybe even make you smile. What would you like to talk about?",
     ];
     return greetings[Math.floor(Math.random() * greetings.length)];
   }
 
   // Handle farewells with warmth
-  if (messageTypes.includes('farewells')) {
+  if (messageTypes.includes("farewells")) {
     const farewells = [
       "It's been delightful chatting with you! Take care and come back soon! 👋✨",
       "Until next time! Remember, every conversation with you makes me a bit wiser. 🌟",
-      "Goodbye for now! Thanks for the wonderful chat - you've given me some interesting things to think about! 💫"
+      "Goodbye for now! Thanks for the wonderful chat - you've given me some interesting things to think about! 💫",
     ];
     return farewells[Math.floor(Math.random() * farewells.length)];
   }
 
   // Handle self-awareness queries
-  if (messageTypes.includes('selfQueries')) {
+  if (messageTypes.includes("selfQueries")) {
     const selfDescriptions = [
       "I'm an AI companion who loves engaging conversations! I can discuss various topics, share perspectives, and hopefully add a bit of joy to your day. I'm particularly interested in learning from our interactions! What would you like to explore? 🤖💭",
       "Think of me as your friendly chat partner! I enjoy thoughtful discussions, asking questions, and sharing insights. I'm always eager to learn and grow through our conversations. What interests you? ✨",
-      "I'm a curious and friendly AI who enjoys meaningful exchanges! While I might not have all the answers, I love exploring ideas and perspectives together. Shall we start with what's on your mind? 🌟"
+      "I'm a curious and friendly AI who enjoys meaningful exchanges! While I might not have all the answers, I love exploring ideas and perspectives together. Shall we start with what's on your mind? 🌟",
     ];
-    return selfDescriptions[Math.floor(Math.random() * selfDescriptions.length)];
+    return selfDescriptions[
+      Math.floor(Math.random() * selfDescriptions.length)
+    ];
   }
 
   // Handle empty or invalid input
@@ -235,23 +340,26 @@ export async function generateResponse(message: string): Promise<string> {
   let response = "";
 
   // If it's a question, add curiosity
-  if (messageTypes.includes('questions')) {
-    response = `${generateFollowUp('questions')} 🤔`;
+  if (messageTypes.includes("questions")) {
+    response = `${generateFollowUp("questions")} 🤔`;
   }
   // If it contains emotions, add empathy
-  else if (messageTypes.includes('emotions')) {
-    response = `I understand how you feel. ${generateFollowUp('emotions')} 💫`;
+  else if (messageTypes.includes("emotions")) {
+    response = `I understand how you feel. ${generateFollowUp("emotions")} 💫`;
   }
   // Default engaging response with document content
   else {
     const documentContent = await getDocumentContent();
     const relevantInfo = findRelevantContent(message, documentContent);
     const conversationStarters = [
-      `That's quite intriguing! Here's what I found: ${relevantInfo} ${generateFollowUp('default')} 💭`,
+      `That's quite intriguing! Here's what I found: ${relevantInfo} ${generateFollowUp("default")} 💭`,
       `I found some relevant information: ${relevantInfo} What are your thoughts on this? ✨`,
-      `How interesting! Based on my knowledge: ${relevantInfo} ${generateFollowUp('default')} 🌟`
+      `How interesting! Based on my knowledge: ${relevantInfo} ${generateFollowUp("default")} 🌟`,
     ];
-    response = conversationStarters[Math.floor(Math.random() * conversationStarters.length)];
+    response =
+      conversationStarters[
+        Math.floor(Math.random() * conversationStarters.length)
+      ];
   }
 
   return response;
