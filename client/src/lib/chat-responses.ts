@@ -17,6 +17,12 @@ const contextPatterns = {
   questions: ["why", "how", "what", "when", "where", "who"]
 };
 
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  dangerouslyAllowBrowser: true // Enable client-side usage
+});
+
 // Helper function to detect message type
 function detectMessageType(message: string): string[] {
   const types: string[] = [];
@@ -57,17 +63,11 @@ function generateFollowUp(context: string): string {
   return relevantFollowUps[Math.floor(Math.random() * relevantFollowUps.length)];
 }
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true // Enable client-side usage
-});
-
 // Function to get AI-generated response
 async function getAIResponse(message: string): Promise<string | null> {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o", // newest model as of May 13, 2024
+      model: "gpt-3.5-turbo", // Using a more widely available model
       messages: [
         {
           role: "system",
@@ -96,16 +96,20 @@ async function getAIResponse(message: string): Promise<string | null> {
 }
 
 export async function generateResponse(message: string): Promise<string> {
-  const messageTypes = detectMessageType(message);
-  const lowercaseMsg = message.toLowerCase();
-
-  // Try to get AI-generated response first
-  const aiResponse = await getAIResponse(message);
-  if (aiResponse) {
-    return aiResponse;
+  try {
+    // Try to get AI-generated response first
+    const aiResponse = await getAIResponse(message);
+    if (aiResponse) {
+      return aiResponse;
+    }
+  } catch (error) {
+    console.error('Error generating AI response:', error);
   }
 
   // Fallback to pattern-based responses if AI fails
+  const messageTypes = detectMessageType(message);
+  const lowercaseMsg = message.toLowerCase();
+
   // Handle greetings with personality
   if (messageTypes.includes('greetings')) {
     const greetings = [
